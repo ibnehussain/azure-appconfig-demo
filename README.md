@@ -1,62 +1,92 @@
-Prerequisites: 
+````markdown
+# Azure App Configuration + Key Vault + App Service Lab
 
-1. Fork the below repo
-Github Repo link:
-https://github.com/ibnehussain/azure-appconfig-demo.git
-2. Admin access to create Managed Identity
+## Prerequisites
 
-Lab: 
-Step 1: Create an Azure App Configuration Store
-•	Go to the Azure Portal.
-•	Search for "App Configuration" → Click "Create".
-•	Fill in details (Resource Group, Name, Location) → Create.
-•	Once created, go to "Configuration Explorer" and add these key-value pairs:
+1. **Fork the repository:**
+   - GitHub Repo: [https://github.com/ibnehussain/azure-appconfig-demo.git](https://github.com/ibnehussain/azure-appconfig-demo.git)
+2. **Admin access** to create Managed Identity in Azure.
 
-PromoBanner/Text: "Summer Sale - 50% Off!"
-PromoBanner/Color: "blue" (or any CSS color like "#FF5733")
-Feature/NewCheckout: "true"
+---
 
-Step 2: Set Up Azure Key Vault
-•	Create a Key Vault:
-•	Go to Azure Portal
-•	Search for "Key Vault" → Create
-•	Fill in details (Name, Resource Group, Region)
-•	Click "Review + create" → Create
-•	Add your App Configuration connection string as a secret:
-•	Go to your new Key Vault → "Secrets" → "Generate/Import"
-•	Name: AppConfigConnectionString
-•	Value: Paste your App Configuration connection string
-•	Click "Create"
+## Lab Instructions
 
+### Step 1: Create an Azure App Configuration Store
+1. Go to the **Azure Portal**.
+2. Search for **App Configuration** → Click **Create**.
+3. Fill in details:
+   - **Resource Group**
+   - **Name**
+   - **Location**
+4. Click **Create**.
+5. Once created, go to **Configuration Explorer** and add these key-value pairs:
 
-Step 3: Deploy Azure App Service
-Create an Azure Web app with stack as Node 20 LTS
+| Key                  | Value                             |
+|----------------------|-----------------------------------|
+| `PromoBanner/Text`   | `Summer Sale - 50% Off!`           |
+| `PromoBanner/Color`  | `blue` *(or any CSS color like `#FF5733`)* |
+| `Feature/NewCheckout`| `true`                            |
 
-Step 4: Configure Azure App Service
-Enable Managed Identity:
+---
 
-Go to your App Service → "Identity"
-Turn on "System assigned" identity → Save
+### Step 2: Set Up Azure Key Vault
+1. **Create a Key Vault:**
+   - Go to Azure Portal.
+   - Search for **Key Vault** → **Create**.
+   - Fill in:
+     - **Name**
+     - **Resource Group**
+     - **Region**
+   - Click **Review + create** → **Create**.
+   
+2. **Add App Configuration connection string as a secret:**
+   - Go to your new **Key Vault** → **Secrets** → **Generate/Import**.
+   - **Name:** `AppConfigConnectionString`
+   - **Value:** Paste your App Configuration connection string.
+   - Click **Create**.
 
-Step 5: Grant key vault access to Identity
-Go to your Key Vault → "Access control (IAM)"
-Click "Add role assignment"
-Select role: "Key Vault Secrets User"
-Assign access to: "Managed identity"
-Select your App Service's identity
-Click "Review + assign"
+---
 
+### Step 3: Deploy Azure App Service
+- Create an **Azure Web App** with stack set to **Node 20 LTS**.
 
+---
 
+### Step 4: Configure Azure App Service (Enable Managed Identity)
+1. Go to your App Service → **Identity**.
+2. Turn on **System assigned** identity → **Save**.
 
+---
 
+### Step 5: Grant Key Vault Access to Identity
+1. Go to your Key Vault → **Access control (IAM)**.
+2. Click **Add role assignment**.
+3. Select role: **Key Vault Secrets User**.
+4. Assign access to: **Managed identity**.
+5. Select your **App Service's identity**.
+6. Click **Review + assign**.
 
-Step 6 : Update app.js to use Key Vault:
+---
 
+### Step 6: Update `app.js` to use Key Vault
+```javascript
 // Key Vault URL (replace with yours)
 const keyVaultUrl = "https://YOUR-KEYVAULT-NAME.vault.azure.net";
- ![image](https://github.com/user-attachments/assets/c2400358-07d2-421a-b285-31f36a1e9214)
+````
 
-Step 7: Add GitHub as source in your Azure App settings
-Go to Deployment center and add the forked repo.
+![Key Vault Screenshot](https://github.com/user-attachments/assets/c2400358-07d2-421a-b285-31f36a1e9214)
 
+---
+
+### Step 7: Add GitHub as Source in Azure App Settings
+
+1. Go to **Deployment Center** in your App Service.
+2. Add the **forked GitHub repo** as your deployment source.
+
+---
+
+✅ **Lab Complete!** You have integrated Azure App Configuration with Key Vault and deployed the app using Managed Identity.
+
+```
+
+```
