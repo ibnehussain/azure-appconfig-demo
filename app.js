@@ -12,7 +12,7 @@ const port = process.env.PORT || 3000;
 const credential = new DefaultAzureCredential();
 
 // Key Vault URL (replace with yours)
-const keyVaultUrl = "https://keyvaulktcentific.vault.azure.net/";
+const keyVaultUrl = "https://azharvault.vault.azure.net/";
 
 // Create Secret Client
 const secretClient = new SecretClient(keyVaultUrl, credential);
