@@ -49,7 +49,7 @@ app.get('/', async (req, res) => {
             </head>
             <body>
                 <div class="banner">${promoText.value}</div>
-                <h1>Welcome to our Store!</h1>
+                <h1>Welcome to our LTI Mindtree Store!</h1>
                 <p>New Checkout Feature: ${newCheckoutEnabled.value === "true" ? "🟢 Enabled" : "🔴 Disabled"}</p>
                 <p><small>Configuration securely stored in Key Vault</small></p>
             </body>
