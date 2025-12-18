@@ -12,7 +12,7 @@ const port = process.env.PORT || 3000;
 const credential = new DefaultAzureCredential();
 
 // Key Vault URL (replace with yours)
-const keyVaultUrl = "https://honeywellvault.vault.azure.net/";
+const keyVaultUrl = "https://bmwkeyvault001.vault.azure.net/";
 
 // Create Secret Client
 const secretClient = new SecretClient(keyVaultUrl, credential);
