@@ -2,9 +2,37 @@ const express = require('express');
 const { AppConfigurationClient } = require('@azure/app-configuration');
 const { DefaultAzureCredential } = require('@azure/identity');
 const { SecretClient } = require('@azure/keyvault-secrets');
+const cors = require('cors');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 3001; // Changed to 3001 for backend
+
+// Rate limiters
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests, please try again later.' }
+});
+
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many login attempts, please try again later.' }
+});
+
+// Middleware
+app.use(express.json());
+app.use(cors({
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    credentials: true
+}));
 
 // Use DefaultAzureCredential which will automatically use:
 // - Environment variables (for local development)
@@ -17,13 +45,181 @@ const keyVaultUrl = "https://mydemokeyvault2002.vault.azure.net/";
 // Create Secret Client
 const secretClient = new SecretClient(keyVaultUrl, credential);
 
+// JWT Secret (in production, this should come from Key Vault or environment variable)
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+    if (process.env.NODE_ENV === 'production') {
+        throw new Error('JWT_SECRET environment variable must be set in production');
+    }
+    console.warn('WARNING: JWT_SECRET not set. Using insecure default. Set JWT_SECRET env variable for production.');
+}
+const jwtSecret = JWT_SECRET || 'dev-only-insecure-secret';
+
+// Mock user database (in production, use a real database)
+const users = [
+    {
+        id: 1,
+        username: 'demo@ltimindtree.com',
+        password: '$2b$10$rOzWbkQ9p5Fy8.QqZ6m7CeHPFZGVN1wR8PjHgF5nC2QxGkY7mKfO2', // 'password123'
+        name: 'Demo User'
+    }
+];
+
+// Helper function to get App Configuration client
+async function getAppConfigClient() {
+    try {
+        const connectionString = await secretClient.getSecret("AppConfigConnectionString");
+        return new AppConfigurationClient(connectionString.value);
+    } catch (error) {
+        console.error('Error getting App Config client:', error);
+        throw error;
+    }
+}
+
+// Authentication middleware
+function authenticateToken(req, res, next) {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+        return res.status(401).json({ error: 'Access token required' });
+    }
+
+    jwt.verify(token, jwtSecret, (err, user) => {
+        if (err) {
+            return res.status(403).json({ error: 'Invalid or expired token' });
+        }
+        req.user = user;
+        next();
+    });
+}
+
+// Routes
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+    res.json({ 
+        status: 'OK', 
+        timestamp: new Date().toISOString(),
+        service: 'azure-appconfig-demo-backend'
+    });
+});
+
+// Login endpoint
+app.post('/api/auth/login', loginLimiter, async (req, res) => {
+    try {
+        const { username, password } = req.body;
+
+        if (!username || !password) {
+            return res.status(400).json({ error: 'Username and password required' });
+        }
+
+        // Find user
+        const user = users.find(u => u.username === username);
+        if (!user) {
+            return res.status(401).json({ error: 'Invalid credentials' });
+        }
+
+        // Verify password
+        const isValidPassword = await bcrypt.compare(password, user.password);
+        if (!isValidPassword) {
+            return res.status(401).json({ error: 'Invalid credentials' });
+        }
+
+        // Generate JWT token
+        const token = jwt.sign(
+            { 
+                id: user.id, 
+                username: user.username, 
+                name: user.name 
+            },
+            jwtSecret,
+            { expiresIn: '24h' }
+        );
+
+        res.json({
+            success: true,
+            token,
+            user: {
+                id: user.id,
+                username: user.username,
+                name: user.name
+            }
+        });
+    } catch (error) {
+        console.error('Login error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Get user profile
+app.get('/api/auth/profile', apiLimiter, authenticateToken, (req, res) => {
+    res.json({
+        success: true,
+        user: req.user
+    });
+});
+
+// Get all configuration settings
+app.get('/api/config', apiLimiter, authenticateToken, async (req, res) => {
+    try {
+        const client = await getAppConfigClient();
+
+        // Fetch settings from Azure App Configuration
+        const promoText = await client.getConfigurationSetting({ key: "PromoBanner/Text" });
+        const promoColor = await client.getConfigurationSetting({ key: "PromoBanner/Color" });
+        const newCheckoutEnabled = await client.getConfigurationSetting({ key: "Feature/NewCheckout" });
+
+        res.json({
+            success: true,
+            config: {
+                promoBanner: {
+                    text: promoText.value,
+                    color: promoColor.value
+                },
+                features: {
+                    newCheckout: newCheckoutEnabled.value === "true"
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Error loading settings:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Failed to load configuration',
+            details: error.message 
+        });
+    }
+});
+
+// Get specific configuration setting
+app.get('/api/config/:key', apiLimiter, authenticateToken, async (req, res) => {
+    try {
+        const client = await getAppConfigClient();
+        const { key } = req.params;
+        
+        const setting = await client.getConfigurationSetting({ key });
+        
+        res.json({
+            success: true,
+            key: setting.key,
+            value: setting.value,
+            lastModified: setting.lastModified
+        });
+    } catch (error) {
+        console.error('Error loading setting:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Failed to load configuration setting',
+            details: error.message 
+        });
+    }
+});
+
+// Legacy web interface (for backward compatibility)
 app.get('/', async (req, res) => {
     try {
-        // First get the connection string from Key Vault
-        const connectionString = await secretClient.getSecret("AppConfigConnectionString");
-        
-        // Then connect to App Configuration
-        const client = new AppConfigurationClient(connectionString.value);
+        const client = await getAppConfigClient();
 
         // Fetch settings from Azure App Configuration
         const promoText = await client.getConfigurationSetting({ key: "PromoBanner/Text" });
@@ -45,13 +241,32 @@ app.get('/', async (req, res) => {
                         font-size: 24px;
                         margin-bottom: 20px;
                     }
+                    .api-info {
+                        background-color: #f0f0f0;
+                        padding: 15px;
+                        margin: 20px 0;
+                        border-radius: 5px;
+                    }
                 </style>
             </head>
             <body>
                 <div class="banner">${promoText.value}</div>
-                <h1>Welcome to our BMW Store!</h1>
+                <h1>Welcome to our LTI Mindtree Store!</h1>
                 <p>New Checkout Feature: ${newCheckoutEnabled.value === "true" ? "🟢 Enabled" : "🔴 Disabled"}</p>
                 <p><small>Configuration securely stored in Key Vault</small></p>
+                
+                <div class="api-info">
+                    <h3>🔗 API Endpoints Available:</h3>
+                    <ul>
+                        <li><strong>POST</strong> /api/auth/login - User authentication</li>
+                        <li><strong>GET</strong> /api/auth/profile - Get user profile (requires auth)</li>
+                        <li><strong>GET</strong> /api/config - Get all configuration settings (requires auth)</li>
+                        <li><strong>GET</strong> /api/config/:key - Get specific setting (requires auth)</li>
+                        <li><strong>GET</strong> /api/health - Health check</li>
+                    </ul>
+                    <p><strong>Demo Credentials:</strong> demo@ltimindtree.com / password123</p>
+                    <p><strong>Frontend URL:</strong> <a href="http://localhost:3000">http://localhost:3000</a></p>
+                </div>
             </body>
             </html>
         `);
@@ -60,6 +275,20 @@ app.get('/', async (req, res) => {
     }
 });
 
-app.listen(port, () => {
-    console.log(`App running at http://localhost:${port}`);
+// Error handling middleware
+app.use((error, req, res, next) => {
+    console.error('Unhandled error:', error);
+    res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+        ...(process.env.NODE_ENV === 'development' && { details: error.message })
+    });
 });
+
+app.listen(port, () => {
+    console.log(`🚀 Backend API running at http://localhost:${port}`);
+    console.log(`📋 API Documentation available at http://localhost:${port}`);
+    console.log(`🔒 Authentication required for /api/config endpoints`);
+});
+
+module.exports = app;
