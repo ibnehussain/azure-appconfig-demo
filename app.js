@@ -12,7 +12,7 @@ const port = process.env.PORT || 3000;
 const credential = new DefaultAzureCredential();
 
 // Key Vault URL (replace with yours)
-const keyVaultUrl = "https://mydemokeyvault2002.vault.azure.net/";
+const keyVaultUrl = "https://demokeyvault001245.vault.azure.net/";
 
 // Create Secret Client
 const secretClient = new SecretClient(keyVaultUrl, credential);
@@ -49,7 +49,7 @@ app.get('/', async (req, res) => {
             </head>
             <body>
                 <div class="banner">${promoText.value}</div>
-                <h1>Welcome to our BMW Store!</h1>
+                <h1>Welcome to our Publicis Groupe Store!</h1>
                 <p>New Checkout Feature: ${newCheckoutEnabled.value === "true" ? "🟢 Enabled" : "🔴 Disabled"}</p>
                 <p><small>Configuration securely stored in Key Vault</small></p>
             </body>
